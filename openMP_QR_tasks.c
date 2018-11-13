@@ -57,28 +57,28 @@ int main(int argc, char *argv[]) {
 
 			#pragma omp single
 			{
-			for(j = k + 1; j < n; j++) {
-				mysum = 0;
-				#pragma omp task private(j, mysum) shared(k, r)
-				{
-					for(i = 0; i < m; i++) {
-						#pragma	omp task private(i) shared(k, j) reduction(+:mysum)
-						mysum += q[i][k] * a[i][j];
+				for(j = k + 1; j < n; j++) {
+					mysum = 0;
+					#pragma omp task private(j, mysum) shared(k, r)
+					{
+						for(i = 0; i < m; i++) {
+							#pragma	omp task private(i) shared(k, j)
+							mysum += q[i][k] * a[i][j];
+						}
+
+						#pragma omp taskwait	
+
+						r[k][j] = mysum;
+
+						for (i = 0; i < m; i++) {
+							#pragma omp task private(i) shared(k, j)
+							a[i][j] = a[i][j] - r[k][j] * q[i][k];
+						}					
+						#pragma omp taskwait
 					}
-
-					#pragma omp taskwait	
-			
-					r[k][j] = mysum;
-
-					for (i = 0; i < m; i++) {
-						#pragma omp task private(i) shared(k, j)
-						a[i][j] = a[i][j] - r[k][j] * q[i][k];
-					}					
-					#pragma omp taskwait
 				}
 			}
-			}
-
+			#pragma omp taskwait
 		}
 	}
 
