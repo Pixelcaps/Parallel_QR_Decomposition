@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
 		a[i] = malloc(sizeof(double) * n);
 		q[i] = malloc(sizeof(double) * n);
 		for (j = 0; j < n; j++)
-			a[i][j] = (i+1)*(j+1) + 10;
+			a[i][j] = i*j + 500;
 	}
 	for (i = 0; i < n; i++) {
 		r[i] = malloc(sizeof(double) * n);
@@ -28,28 +28,60 @@ int main(int argc, char *argv[]) {
 	for (k = 0; k < n; k++){
 		r[k][k] = 0;
 		mysum = 0;
-		#pragma omp parallel for private(i) reduction(+:mysum) schedule(static) 
-		for (i = 0; i < m; i++)
-			mysum += a[i][k] * a[i][k];
-		r[k][k] = mysum;
-		r[k][k] = sqrt(r[k][k]);
-		#pragma omp parallel for private(i) shared(k, r) schedule(static) 
-		for (i = 0; i < m; i++)
-			q[i][k] = a[i][k] / r[k][k];
-	 	#pragma omp parallel for private(j, mysum) shared(k, r) 
-		for(j = k + 1; j < n; j++) {
-			mysum = 0;
-			#pragma omp parallel for private(i) shared(k, j) reduction(+:mysum) schedule(static)
-			for(i = 0; i < m; i++)
-				mysum += q[i][k] * a[i][j];
-			r[k][j] = mysum;
-			#pragma omp parallel for private(i) shared(k, j) schedule(static)
-			for (i = 0; i < m; i++)
-				a[i][j] = a[i][j] - r[k][j] * q[i][k];
+		
+		#pragma omp parallel
+		{
+			#pragma omp single
+			{
+				for (i = 0; i < m; i++) {
+					#pragma omp task private(i) reduction(+:mysum)
+					mysum += a[i][k] * a[i][k];
+				}
+			}
+		
+			#pragma omp taskwait
+
+			r[k][k] = mysum;
+			r[k][k] = sqrt(r[k][k]);
+
+			#pragma omp single
+			{
+
+				for (i = 0; i < m; i++) {			
+					#pragma omp task private(i) shared(k,r)
+					q[i][k] = a[i][k] / r[k][k];
+				}
+			}
+
+			#pragma omp taskwait
+
+			#pragma omp single
+			{
+			for(j = k + 1; j < n; j++) {
+				mysum = 0;
+				#pragma omp task private(j, mysum) shared(k, r)
+				{
+					for(i = 0; i < m; i++) {
+						#pragma	omp task private(i) shared(k, j) reduction(+:mysum)
+						mysum += q[i][k] * a[i][j];
+					}
+
+					#pragma omp taskwait	
+			
+					r[k][j] = mysum;
+
+					for (i = 0; i < m; i++) {
+						#pragma omp task private(i) shared(k, j)
+						a[i][j] = a[i][j] - r[k][j] * q[i][k];
+					}					
+					#pragma omp taskwait
+				}
+			}
+			}
+
 		}
 	}
 
-/*
 
 	printf("a = \n");
 
@@ -80,7 +112,6 @@ int main(int argc, char *argv[]) {
 		
 	printf("\n\n");
 
-*/
 	for (i = 0; i < m; i++) {
 		free(a[i]);
 		free(q[i]);
