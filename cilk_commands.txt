@@ -1,0 +1,2 @@
+g++ cilk_QR.cpp -g -o cilk -fcilkplus -lcilkrts
+icpc cilk_QR.cpp -g -o cilk
